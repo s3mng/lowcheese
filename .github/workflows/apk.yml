@@ -43,11 +43,11 @@ jobs:
         run: |
           mkdir -p dist
           VERSION="${GITHUB_REF_NAME//\//-}"
-          cp app/build/outputs/apk/release/app-release.apk "dist/lowcheese-${VERSION}-${GITHUB_RUN_NUMBER}.apk"
+          cp app/build/outputs/apk/release/app-release.apk "dist/cracker-${VERSION}-${GITHUB_RUN_NUMBER}.apk"
 
       - uses: actions/upload-artifact@v6
         with:
-          name: lowcheese-apk
+          name: cracker-apk
           path: dist/*.apk
           if-no-files-found: error
 

@@ -3,4 +3,5 @@
     <color name="ink">#FF0B0B0A</color>
     <color name="paper">#FFF6F1E6</color>
     <color name="cheddar">#FFE6B84A</color>
+    <color name="cheddar_deep">#FFC4921A</color>
 </resources>

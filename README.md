@@ -1,4 +1,4 @@
-# lowcheese
+# cracker
 
 치지직 라이브 녹화 / 다시보기 저장 앱입니다.
 

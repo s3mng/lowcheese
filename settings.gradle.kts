@@ -22,5 +22,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Lowcheese"
+rootProject.name = "cracker"
 include(":app")
