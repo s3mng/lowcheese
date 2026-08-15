@@ -22,13 +22,13 @@ val hasReleaseSigning =
     System.getenv("SIGNING_STORE_FILE") != null || keystoreProps["storeFile"] != null
 
 android {
-    namespace = "com.example.lowcheese"
+    namespace = "app.lowcheese"
     compileSdk {
         version = release(37)
     }
 
     defaultConfig {
-        applicationId = "com.example.lowcheese"
+        applicationId = "app.lowcheese"
         minSdk = 35
         targetSdk = 37
         versionCode = 1
@@ -86,6 +86,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.security.crypto)
+    implementation(libs.androidx.documentfile)
     implementation(libs.okhttp)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
