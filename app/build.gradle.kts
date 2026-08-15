@@ -3,6 +3,24 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+val keystorePropsFile = rootProject.file("keystore.properties")
+val keystoreProps: Map<String, String> =
+    if (keystorePropsFile.exists()) {
+        keystorePropsFile.readLines().mapNotNull { line ->
+            val trimmed = line.trim()
+            if (trimmed.isEmpty() || trimmed.startsWith("#") || "=" !in trimmed) {
+                null
+            } else {
+                val index = trimmed.indexOf("=")
+                trimmed.substring(0, index) to trimmed.substring(index + 1)
+            }
+        }.toMap()
+    } else {
+        emptyMap()
+    }
+val hasReleaseSigning =
+    System.getenv("SIGNING_STORE_FILE") != null || keystoreProps["storeFile"] != null
+
 android {
     namespace = "com.example.lowcheese"
     compileSdk {
@@ -19,10 +37,28 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = System.getenv("SIGNING_STORE_FILE")?.let { file(it) }
+                    ?: rootProject.file(keystoreProps.getValue("storeFile"))
+                storePassword = System.getenv("SIGNING_STORE_PASSWORD")
+                    ?: keystoreProps.getValue("storePassword")
+                keyAlias = System.getenv("SIGNING_KEY_ALIAS")
+                    ?: keystoreProps.getValue("keyAlias")
+                keyPassword = System.getenv("SIGNING_KEY_PASSWORD")
+                    ?: keystoreProps.getValue("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
             optimization {
                 enable = false
+            }
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
             }
         }
     }
