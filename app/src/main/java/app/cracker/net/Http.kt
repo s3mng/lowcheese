@@ -31,13 +31,23 @@ class CookieInterceptor(private val cookieHeader: () -> String?) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val host = chain.request().url.host
         val cookie = cookieHeader()
-        val request = if (!cookie.isNullOrBlank() && host.endsWith("naver.com")) {
+        val request = if (!cookie.isNullOrBlank() && isNaverHost(host)) {
             chain.request().newBuilder().header("Cookie", cookie).build()
         } else {
             chain.request()
         }
         return chain.proceed(request)
     }
+}
+
+fun isNaverHost(host: String): Boolean {
+    val value = host.lowercase()
+    return value == "naver.com" || value.endsWith(".naver.com")
+}
+
+fun isChzzkHost(host: String): Boolean {
+    val value = host.lowercase()
+    return value == "chzzk.naver.com" || value.endsWith(".chzzk.naver.com")
 }
 
 fun OkHttpClient.getText(url: String): String {

@@ -2,6 +2,7 @@ package app.cracker.auth
 
 import android.annotation.SuppressLint
 import android.graphics.Color as AndroidColor
+import android.net.Uri
 import android.os.Build
 import android.webkit.CookieManager
 import android.webkit.WebChromeClient
@@ -32,6 +33,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import app.cracker.net.isChzzkHost
+import app.cracker.net.isNaverHost
 import app.cracker.ui.theme.Cheddar
 import app.cracker.ui.theme.InkOnPaper
 import app.cracker.ui.theme.MutedOnPaper
@@ -59,7 +62,10 @@ fun NaverLoginScreen(
                 .padding(end = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(onClick = { onDone(false) }) {
+            IconButton(onClick = {
+                discardWebViewCookies()
+                onDone(false)
+            }) {
                 Icon(
                     Icons.AutoMirrored.Outlined.ArrowBack,
                     contentDescription = "닫기",
@@ -112,11 +118,14 @@ fun NaverLoginScreen(
                         override fun shouldOverrideUrlLoading(
                             view: WebView,
                             request: WebResourceRequest,
-                        ): Boolean = false
+                        ): Boolean = !isAllowedLoginUrl(request.url)
 
                         override fun onPageFinished(view: WebView, url: String) {
+                            val host = runCatching { Uri.parse(url).host }.getOrNull() ?: return
+                            if (!isNaverHost(host)) return
                             val captured = captureCookies(store)
-                            if (captured && url.contains("chzzk.naver.com") && finished.compareAndSet(false, true)) {
+                            if (captured && isChzzkHost(host) && finished.compareAndSet(false, true)) {
+                                discardWebViewCookies()
                                 view.post { onDone(true) }
                             }
                         }
@@ -124,8 +133,23 @@ fun NaverLoginScreen(
                     loadUrl(LOGIN_URL)
                 }
             },
+            onRelease = { view ->
+                view.destroy()
+            },
         )
     }
+}
+
+private fun isAllowedLoginUrl(uri: Uri): Boolean {
+    if (uri.scheme != "https") return false
+    val host = uri.host ?: return false
+    return isNaverHost(host)
+}
+
+private fun discardWebViewCookies() {
+    val manager = CookieManager.getInstance()
+    manager.removeAllCookies(null)
+    manager.flush()
 }
 
 private fun captureCookies(store: NaverCookieStore): Boolean {
