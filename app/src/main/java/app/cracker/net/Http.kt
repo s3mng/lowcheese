@@ -53,7 +53,7 @@ fun isChzzkHost(host: String): Boolean {
 fun OkHttpClient.getText(url: String): String {
     val response = newCall(Request.Builder().url(url).get().build()).execute()
     response.use {
-        val body = it.body?.string().orEmpty()
+        val body = it.body.string()
         if (!it.isSuccessful) throw IOException("HTTP ${it.code}")
         return body
     }
@@ -67,7 +67,7 @@ fun OkHttpClient.download(
     val response = newCall(Request.Builder().url(url).get().build()).execute()
     response.use {
         if (!it.isSuccessful) throw IOException("HTTP ${it.code}")
-        val body = it.body ?: throw IOException("empty")
+        val body = it.body
         val total = body.contentLength()
         val input = body.byteStream()
         val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
