@@ -241,9 +241,13 @@ private fun LivePulseBar() {
 
 private fun statusCaption(job: DownloadJob): String? = when (job.status) {
     JobStatus.Running -> when {
-        job.kind == JobKind.Live -> "녹화 중"
-        job.attempt > 1 -> "${(job.progress * 100).toInt()}% · 재시도 ${job.attempt}/${job.maxAttempts}"
-        else -> "${(job.progress * 100).toInt()}%"
+        job.kind.isLive -> listOfNotNull("녹화 중", job.speedLabel).joinToString(" · ")
+        job.attempt > 1 -> listOfNotNull(
+            "${(job.progress * 100).toInt()}%",
+            "재시도 ${job.attempt}/${job.maxAttempts}",
+            job.speedLabel,
+        ).joinToString(" · ")
+        else -> listOfNotNull("${(job.progress * 100).toInt()}%", job.speedLabel).joinToString(" · ")
     }
     JobStatus.Paused -> "일시정지"
     JobStatus.Completed -> "저장됨"

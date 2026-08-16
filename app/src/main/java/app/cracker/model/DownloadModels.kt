@@ -37,6 +37,7 @@ data class DownloadJob(
     val status: JobStatus,
     val progress: Float = 0f,
     val elapsedLabel: String? = null,
+    val speedLabel: String? = null,
     val isAdult: Boolean = false,
     val error: String? = null,
     val attempt: Int = 1,

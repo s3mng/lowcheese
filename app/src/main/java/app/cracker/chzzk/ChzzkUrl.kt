@@ -18,6 +18,15 @@ object ChzzkUrl {
     }
 }
 
+fun formatSpeed(bytesPerSec: Long): String? {
+    if (bytesPerSec <= 0L) return null
+    return when {
+        bytesPerSec >= 1_048_576L -> "%.1f MB/s".format(java.util.Locale.US, bytesPerSec / 1_048_576.0)
+        bytesPerSec >= 1024L -> "%d KB/s".format(java.util.Locale.US, bytesPerSec / 1024L)
+        else -> "$bytesPerSec B/s"
+    }
+}
+
 fun formatClock(ms: Long): String {
     val total = (ms / 1000).coerceAtLeast(0)
     val h = total / 3600

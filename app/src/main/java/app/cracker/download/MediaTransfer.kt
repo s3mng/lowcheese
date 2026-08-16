@@ -19,7 +19,7 @@ class MediaTransfer(
     suspend fun downloadVod(
         quality: QualityOption,
         output: File,
-        onProgress: (Float) -> Unit,
+        onProgress: (progress: Float, bytes: Long) -> Unit,
         isPaused: () -> Boolean,
         isCancelled: () -> Boolean,
     ) {
@@ -71,31 +71,33 @@ class MediaTransfer(
     private suspend fun downloadHls(
         mediaUrl: String,
         output: OutputStream,
-        onProgress: (Float) -> Unit,
+        onProgress: (progress: Float, bytes: Long) -> Unit,
         isPaused: () -> Boolean,
         isCancelled: () -> Boolean,
     ) {
         val playlist = HlsParser.parseMedia(http.getText(mediaUrl), mediaUrl)
         val total = playlist.segments.size.coerceAtLeast(1) + if (playlist.mapUri != null) 1 else 0
         var done = 0
+        var bytes = 0L
         output.use { sink ->
+            val counted = CountingSink(sink) { bytes += it }
             if (playlist.mapUri != null) {
                 waitIfPaused(isPaused, isCancelled)
-                http.download(playlist.mapUri, sink) { copied, length ->
-                    onProgress(segmentProgress(done, copied, length, total))
+                http.download(playlist.mapUri, counted) { copied, length ->
+                    onProgress(segmentProgress(done, copied, length, total), bytes)
                 }
                 done++
-                onProgress(done / total.toFloat())
+                onProgress(done / total.toFloat(), bytes)
             }
             for (segment in playlist.segments) {
                 if (isCancelled()) return
                 waitIfPaused(isPaused, isCancelled)
                 coroutineContext.ensureActive()
-                http.download(segment.uri, sink) { copied, length ->
-                    onProgress(segmentProgress(done, copied, length, total))
+                http.download(segment.uri, counted) { copied, length ->
+                    onProgress(segmentProgress(done, copied, length, total), bytes)
                 }
                 done++
-                onProgress(done / total.toFloat())
+                onProgress(done / total.toFloat(), bytes)
             }
         }
     }
@@ -103,7 +105,7 @@ class MediaTransfer(
     private suspend fun downloadDash(
         quality: QualityOption,
         output: File,
-        onProgress: (Float) -> Unit,
+        onProgress: (progress: Float, bytes: Long) -> Unit,
         isPaused: () -> Boolean,
         isCancelled: () -> Boolean,
     ) {
@@ -114,28 +116,31 @@ class MediaTransfer(
         val audioFile = File(output.parentFile, "${output.nameWithoutExtension}.audio.m4s")
         val urls = video.segmentUrls + (audio?.segmentUrls ?: emptyList())
         var done = 0
+        var bytes = 0L
         try {
             videoFile.outputStream().use { sink ->
+                val counted = CountingSink(sink) { bytes += it }
                 for (url in video.segmentUrls) {
                     if (isCancelled()) return
                     waitIfPaused(isPaused, isCancelled)
-                    http.download(url, sink) { copied, length ->
-                        onProgress(segmentProgress(done, copied, length, urls.size.coerceAtLeast(1)) * 0.9f)
+                    http.download(url, counted) { copied, length ->
+                        onProgress(segmentProgress(done, copied, length, urls.size.coerceAtLeast(1)) * 0.9f, bytes)
                     }
                     done++
-                    onProgress(done / urls.size.coerceAtLeast(1).toFloat() * 0.9f)
+                    onProgress(done / urls.size.coerceAtLeast(1).toFloat() * 0.9f, bytes)
                 }
             }
             if (audio != null) {
                 audioFile.outputStream().use { sink ->
+                    val counted = CountingSink(sink) { bytes += it }
                     for (url in audio.segmentUrls) {
                         if (isCancelled()) return
                         waitIfPaused(isPaused, isCancelled)
-                        http.download(url, sink) { copied, length ->
-                            onProgress(segmentProgress(done, copied, length, urls.size.coerceAtLeast(1)) * 0.9f)
+                        http.download(url, counted) { copied, length ->
+                            onProgress(segmentProgress(done, copied, length, urls.size.coerceAtLeast(1)) * 0.9f, bytes)
                         }
                         done++
-                        onProgress(done / urls.size.coerceAtLeast(1).toFloat() * 0.9f)
+                        onProgress(done / urls.size.coerceAtLeast(1).toFloat() * 0.9f, bytes)
                     }
                 }
             }
@@ -144,7 +149,7 @@ class MediaTransfer(
             }.onFailure {
                 videoFile.copyTo(output, overwrite = true)
             }
-            onProgress(1f)
+            onProgress(1f, bytes)
         } finally {
             videoFile.delete()
             audioFile.delete()

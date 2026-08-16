@@ -12,8 +12,8 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import app.cracker.CrackerApplication
 import app.cracker.MainActivity
-import app.cracker.model.JobKind
 import app.cracker.model.JobStatus
+import app.cracker.model.isLive
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -57,9 +57,9 @@ class TransferService : Service() {
                     }
                 } else {
                     val text = when {
-                        active.kind == JobKind.Live -> active.elapsedLabel ?: "녹화 중"
+                        active.kind.isLive -> listOfNotNull(active.elapsedLabel ?: "녹화 중", active.speedLabel).joinToString(" · ")
                         active.status == JobStatus.Paused -> "일시정지"
-                        else -> "${(active.progress * 100).toInt()}%"
+                        else -> listOfNotNull("${(active.progress * 100).toInt()}%", active.speedLabel).joinToString(" · ")
                     }
                     ServiceCompat.startForeground(
                         this@TransferService,
@@ -68,7 +68,7 @@ class TransferService : Service() {
                             active.title,
                             text,
                             active.id,
-                            active.kind == JobKind.Live,
+                            active.kind.isLive,
                             (active.progress * 100).toInt(),
                         ),
                         ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,

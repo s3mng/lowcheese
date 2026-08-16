@@ -3,6 +3,7 @@ package app.cracker.download
 import android.content.Context
 import android.content.Intent
 import app.cracker.chzzk.formatClock
+import app.cracker.chzzk.formatSpeed
 import app.cracker.model.DownloadJob
 import app.cracker.model.JobKind
 import app.cracker.model.isLive
@@ -14,6 +15,7 @@ import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArraySet
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -114,7 +116,7 @@ class TransferCoordinator(
         when (job.status) {
             JobStatus.Running -> {
                 pause[id]?.set(true)
-                upsert(job.copy(status = JobStatus.Paused))
+                upsert(job.copy(status = JobStatus.Paused, speedLabel = null))
             }
             JobStatus.Paused -> {
                 pause[id]?.set(false)
@@ -158,6 +160,7 @@ class TransferCoordinator(
                                     current.copy(
                                         status = JobStatus.Failed,
                                         error = error.message ?: "실패",
+                                        speedLabel = null,
                                     ),
                                 )
                             }
@@ -221,10 +224,12 @@ class TransferCoordinator(
                 }
                 val staging = StagingFile(context, id, extension)
                 val startedAt = System.currentTimeMillis()
+                val sampler = SpeedSampler()
+                val transferred = AtomicLong(0)
                 val ticker = if (live) {
                     scope.launch {
                         while (!cancelled(id) && _jobs.value.any { it.id == id && it.status == JobStatus.Running }) {
-                            upsertElapsed(id, startedAt)
+                            upsertElapsed(id, startedAt, sampler.sample(transferred.get()))
                             delay(1000)
                         }
                     }
@@ -236,19 +241,21 @@ class TransferCoordinator(
                         transfer.recordLive(
                             mediaPlaylistUrl = request.quality.mediaUrl,
                             output = staging.outputStream(),
-                            onBytes = {},
+                            onBytes = { transferred.set(it) },
                             isCancelled = { cancelled(id) },
                         )
                     } else {
                         transfer.downloadVod(
                             quality = request.quality,
                             output = staging.file,
-                            onProgress = { value ->
+                            onProgress = { value, bytes ->
                                 val current = _jobs.value.firstOrNull { it.id == id } ?: return@downloadVod
+                                val paused = pause[id]?.get() == true
                                 upsert(
                                     current.copy(
                                         progress = value,
-                                        status = if (pause[id]?.get() == true) JobStatus.Paused else JobStatus.Running,
+                                        status = if (paused) JobStatus.Paused else JobStatus.Running,
+                                        speedLabel = if (paused) null else formatSpeed(sampler.sample(bytes)),
                                     ),
                                 )
                             },
@@ -264,6 +271,7 @@ class TransferCoordinator(
                             val stopped = current.copy(
                                 status = JobStatus.Stopped,
                                 elapsedLabel = formatClock(System.currentTimeMillis() - startedAt),
+                                speedLabel = null,
                             )
                             upsert(stopped)
                             notifier.notifyFinished(stopped)
@@ -278,6 +286,7 @@ class TransferCoordinator(
                         status = JobStatus.Completed,
                         progress = 1f,
                         elapsedLabel = if (live) formatClock(System.currentTimeMillis() - startedAt) else null,
+                        speedLabel = null,
                     )
                     upsert(finished)
                     notifier.notifyFinished(finished)
@@ -310,6 +319,7 @@ class TransferCoordinator(
             currentJob(id, fallback).copy(
                 status = if (live) JobStatus.Stopped else JobStatus.Cancelled,
                 error = null,
+                speedLabel = null,
             ),
         )
     }
@@ -319,10 +329,15 @@ class TransferCoordinator(
         else -> "video/mp2t"
     }
 
-    private fun upsertElapsed(id: String, startedAt: Long) {
+    private fun upsertElapsed(id: String, startedAt: Long, bytesPerSec: Long) {
         val current = _jobs.value.firstOrNull { it.id == id } ?: return
         if (current.status != JobStatus.Running) return
-        upsert(current.copy(elapsedLabel = formatClock(System.currentTimeMillis() - startedAt)))
+        upsert(
+            current.copy(
+                elapsedLabel = formatClock(System.currentTimeMillis() - startedAt),
+                speedLabel = formatSpeed(bytesPerSec),
+            ),
+        )
     }
 
     private fun restore(jobs: List<DownloadJob>): List<DownloadJob> =
@@ -350,5 +365,29 @@ class TransferCoordinator(
 
     private fun startService() {
         context.startForegroundService(Intent(context, TransferService::class.java))
+    }
+}
+
+private class SpeedSampler {
+    private var lastBytes = 0L
+    private var lastAt = 0L
+    private var bytesPerSec = 0L
+
+    fun sample(totalBytes: Long): Long {
+        val now = System.nanoTime()
+        if (lastAt == 0L) {
+            lastBytes = totalBytes
+            lastAt = now
+            return 0L
+        }
+        val elapsedSec = (now - lastAt) / 1_000_000_000.0
+        if (elapsedSec >= 0.4) {
+            val delta = (totalBytes - lastBytes).coerceAtLeast(0L)
+            val instant = (delta / elapsedSec).toLong()
+            bytesPerSec = if (bytesPerSec == 0L) instant else (bytesPerSec * 3 + instant) / 4
+            lastBytes = totalBytes
+            lastAt = now
+        }
+        return bytesPerSec
     }
 }

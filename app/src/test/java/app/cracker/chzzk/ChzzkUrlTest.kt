@@ -57,4 +57,12 @@ class ChzzkUrlTest {
         assertTrue(media.ended)
         assertTrue(media.segments[0].uri.endsWith("seg10.ts"))
     }
+
+    @Test
+    fun formatsSpeed() {
+        assertEquals("512 B/s", formatSpeed(512))
+        assertEquals("2 KB/s", formatSpeed(2048))
+        assertEquals("1.5 MB/s", formatSpeed((1.5 * 1024 * 1024).toLong()))
+        assertEquals(null, formatSpeed(0))
+    }
 }
