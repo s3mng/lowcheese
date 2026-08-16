@@ -47,11 +47,14 @@ class TransferCoordinator(
     private val cancel = ConcurrentHashMap<String, AtomicBoolean>()
     private val discarded = CopyOnWriteArraySet<String>()
     private val queue = ConcurrentHashMap<String, TransferRequest>()
-    private val _jobs = MutableStateFlow<List<DownloadJob>>(emptyList())
+    private val history = JobHistoryStore(context)
+    private val notifier = TransferNotifier(context)
+    private val _jobs = MutableStateFlow(restore(history.load()))
     val jobs: StateFlow<List<DownloadJob>> = _jobs.asStateFlow()
     private var loop: Job? = null
 
     init {
+        history.save(_jobs.value)
         StagingFile.sweep(context)
     }
 
@@ -89,6 +92,7 @@ class TransferCoordinator(
         queue.remove(id)
         StagingFile.deleteFor(context, id)
         _jobs.update { jobs -> jobs.filterNot { it.id == id } }
+        persist()
     }
 
     fun clearAll() {
@@ -100,6 +104,7 @@ class TransferCoordinator(
         queue.clear()
         StagingFile.sweep(context)
         _jobs.value = emptyList()
+        persist()
     }
 
     fun togglePause(id: String) {
@@ -255,7 +260,12 @@ class TransferCoordinator(
                     if (cancelled(id)) {
                         if (live && staging.file.exists() && staging.file.length() > 0) {
                             staging.publish(request.title, mime(extension), locationStore.uri.value)
-                            upsert(current.copy(status = JobStatus.Stopped, elapsedLabel = formatClock(System.currentTimeMillis() - startedAt)))
+                            val stopped = current.copy(
+                                status = JobStatus.Stopped,
+                                elapsedLabel = formatClock(System.currentTimeMillis() - startedAt),
+                            )
+                            upsert(stopped)
+                            notifier.notifyFinished(stopped)
                         } else {
                             staging.delete()
                             markCancelled(id, request.job, live)
@@ -263,13 +273,13 @@ class TransferCoordinator(
                         return
                     }
                     staging.publish(request.title, mime(extension), locationStore.uri.value)
-                    upsert(
-                        currentJob(id, request.job).copy(
-                            status = JobStatus.Completed,
-                            progress = 1f,
-                            elapsedLabel = if (live) formatClock(System.currentTimeMillis() - startedAt) else null,
-                        ),
+                    val finished = currentJob(id, request.job).copy(
+                        status = JobStatus.Completed,
+                        progress = 1f,
+                        elapsedLabel = if (live) formatClock(System.currentTimeMillis() - startedAt) else null,
                     )
+                    upsert(finished)
+                    notifier.notifyFinished(finished)
                     return
                 } catch (error: Exception) {
                     staging.delete()
@@ -314,12 +324,27 @@ class TransferCoordinator(
         upsert(current.copy(elapsedLabel = formatClock(System.currentTimeMillis() - startedAt)))
     }
 
+    private fun restore(jobs: List<DownloadJob>): List<DownloadJob> =
+        jobs.map { job ->
+            when (job.status) {
+                JobStatus.Queued, JobStatus.Running, JobStatus.Paused ->
+                    job.copy(status = JobStatus.Failed, error = "앱이 종료되어 중단됐어요")
+                else -> job
+            }
+        }
+
+    private fun persist() {
+        history.save(_jobs.value)
+    }
+
     private fun upsert(job: DownloadJob) {
         if (job.id in discarded) return
+        val previous = _jobs.value.firstOrNull { it.id == job.id }
         _jobs.update { list ->
             val without = list.filterNot { it.id == job.id }
-            listOf(job) + without
+            (listOf(job) + without).take(JobHistoryStore.MAX)
         }
+        if (previous == null || previous.status != job.status) persist()
     }
 
     private fun startService() {
