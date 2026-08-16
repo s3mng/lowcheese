@@ -1,5 +1,6 @@
 package app.cracker.chzzk
 
+import app.cracker.model.JobKind
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -10,8 +11,16 @@ class ChzzkUrlTest {
     fun parsesLiveAndVideo() {
         val live = ChzzkUrl.parse("https://chzzk.naver.com/live/c68b8ef525fb3d2fa146344d84991753")
         val video = ChzzkUrl.parse("https://chzzk.naver.com/video/1754?foo=1")
+        val clip = ChzzkUrl.parse("https://chzzk.naver.com/clips/LeqAmSuEQy")
+        val embed = ChzzkUrl.parse("https://chzzk.naver.com/embed/clip/R9BilMGLOS?foo=1")
+        assertEquals(JobKind.Live, live?.kind)
         assertEquals("c68b8ef525fb3d2fa146344d84991753", live?.id)
+        assertEquals(JobKind.Vod, video?.kind)
         assertEquals("1754", video?.id)
+        assertEquals(JobKind.Clip, clip?.kind)
+        assertEquals("LeqAmSuEQy", clip?.id)
+        assertEquals(JobKind.Clip, embed?.kind)
+        assertEquals("R9BilMGLOS", embed?.id)
         assertNull(ChzzkUrl.parse("https://youtube.com/watch?v=1"))
     }
 

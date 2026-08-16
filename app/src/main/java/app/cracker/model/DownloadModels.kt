@@ -1,6 +1,8 @@
 package app.cracker.model
 
-enum class JobKind { Live, Vod }
+enum class JobKind { Live, Vod, Clip }
+
+val JobKind.isLive: Boolean get() = this == JobKind.Live
 
 enum class JobStatus { Queued, Running, Paused, Completed, Failed, Stopped, Cancelled }
 

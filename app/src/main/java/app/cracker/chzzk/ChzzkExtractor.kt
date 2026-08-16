@@ -12,11 +12,12 @@ import org.json.JSONObject
 
 class ChzzkExtractor(private val http: OkHttpClient) {
     fun resolve(rawUrl: String): ExtractResult {
-        val target = ChzzkUrl.parse(rawUrl) ?: return ExtractResult.Failed("치지직 라이브나 다시보기 링크를 붙여 주세요")
+        val target = ChzzkUrl.parse(rawUrl) ?: return ExtractResult.Failed("치지직 라이브, 다시보기, 클립 링크를 붙여 주세요")
         return try {
             when (target.kind) {
                 JobKind.Live -> resolveLive(rawUrl, target.id)
                 JobKind.Vod -> resolveVideo(rawUrl, target.id)
+                JobKind.Clip -> resolveClip(rawUrl, target.id)
             }
         } catch (error: Exception) {
             ExtractResult.Failed(error.message ?: "영상을 찾지 못했어요")
@@ -113,6 +114,39 @@ class ChzzkExtractor(private val http: OkHttpClient) {
                 kind = JobKind.Vod,
                 title = title,
                 channel = channel,
+                isAdult = adult,
+                durationLabel = formatDuration(duration).ifBlank { null },
+                qualities = qualities,
+            ),
+        )
+    }
+
+    private fun resolveClip(sourceUrl: String, clipId: String): ExtractResult {
+        val content = getJson("https://api.chzzk.naver.com/service/v1/play-info/clip/$clipId")
+        val adult = content.optBoolean("adult")
+        val nid = content.optString("videoId")
+        val key = content.optString("inKey")
+        val hasPlayback = nid.isNotBlank() && nid != "null" && key.isNotBlank() && key != "null"
+        if (!hasPlayback) {
+            return if (adult) ExtractResult.NeedsLogin(adultReason(content))
+            else ExtractResult.Failed("클립 재생 정보를 받지 못했어요")
+        }
+        val mpdUrl = "https://apis.naver.com/neonplayer/vodplay/v2/playback/$nid"
+            .toHttpUrl()
+            .newBuilder()
+            .addQueryParameter("key", key)
+            .build()
+            .toString()
+        val qualities = dashQualities(mpdUrl)
+        if (qualities.isEmpty()) return ExtractResult.Failed("화질 목록을 읽지 못했어요")
+        val duration = content.optInt("duration")
+        return ExtractResult.Ready(
+            VideoMeta(
+                sourceUrl = sourceUrl,
+                kind = JobKind.Clip,
+                title = content.optString("contentTitle").ifBlank { "치지직 클립" },
+                channel = content.optJSONObject("ownerChannel")?.optString("channelName").orEmpty()
+                    .ifBlank { "치지직" },
                 isAdult = adult,
                 durationLabel = formatDuration(duration).ifBlank { null },
                 qualities = qualities,

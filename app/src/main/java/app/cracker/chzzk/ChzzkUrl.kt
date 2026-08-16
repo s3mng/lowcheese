@@ -7,11 +7,13 @@ data class ChzzkTarget(val kind: JobKind, val id: String)
 object ChzzkUrl {
     private val live = Regex("""chzzk\.naver\.com/live/([\da-f]+)""", RegexOption.IGNORE_CASE)
     private val video = Regex("""chzzk\.naver\.com/video/(\d+)""", RegexOption.IGNORE_CASE)
+    private val clip = Regex("""chzzk\.naver\.com/(?:clips|embed/clip)/([A-Za-z0-9_-]+)""", RegexOption.IGNORE_CASE)
 
     fun parse(raw: String): ChzzkTarget? {
         val text = raw.trim()
         live.find(text)?.let { return ChzzkTarget(JobKind.Live, it.groupValues[1]) }
         video.find(text)?.let { return ChzzkTarget(JobKind.Vod, it.groupValues[1]) }
+        clip.find(text)?.let { return ChzzkTarget(JobKind.Clip, it.groupValues[1]) }
         return null
     }
 }

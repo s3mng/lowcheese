@@ -50,7 +50,11 @@ fun QualityPickerSheet(
     ) {
         Column(Modifier.padding(start = 24.dp, end = 24.dp, bottom = 32.dp)) {
             Text(
-                if (meta.kind == JobKind.Live) "라이브 녹화" else "다시보기 저장",
+                when (meta.kind) {
+                    JobKind.Live -> "라이브 녹화"
+                    JobKind.Clip -> "클립 저장"
+                    JobKind.Vod -> "다시보기 저장"
+                },
                 style = MaterialTheme.typography.labelSmall,
                 color = if (meta.kind == JobKind.Live) LiveCoral else Cheddar,
                 fontWeight = FontWeight.Bold,

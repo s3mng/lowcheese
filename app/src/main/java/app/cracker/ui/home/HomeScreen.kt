@@ -251,7 +251,7 @@ private fun EmptyQueue(modifier: Modifier = Modifier) {
         Text("아직 아무것도 없어요", style = MaterialTheme.typography.headlineMedium)
         Spacer(Modifier.height(8.dp))
         Text(
-            "라이브는 녹화하고, 다시보기는 파일로 받아요.\n아래 칸에 치지직 링크만 넣으면 됩니다.",
+            "라이브는 녹화하고, 다시보기와 클립은 파일로 받아요.\n아래 칸에 치지직 링크만 넣으면 됩니다.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

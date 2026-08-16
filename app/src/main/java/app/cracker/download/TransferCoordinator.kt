@@ -5,6 +5,7 @@ import android.content.Intent
 import app.cracker.chzzk.formatClock
 import app.cracker.model.DownloadJob
 import app.cracker.model.JobKind
+import app.cracker.model.isLive
 import app.cracker.model.JobStatus
 import app.cracker.model.QualityOption
 import app.cracker.model.StreamProtocol
@@ -109,7 +110,7 @@ class TransferCoordinator(
 
     fun togglePause(id: String) {
         val job = _jobs.value.firstOrNull { it.id == id } ?: return
-        if (job.kind != JobKind.Vod) return
+        if (job.kind.isLive) return
         when (job.status) {
             JobStatus.Running -> {
                 pause[id]?.set(true)
@@ -177,7 +178,7 @@ class TransferCoordinator(
             StagingFile.deleteFor(context, id)
             return
         }
-        val live = request.job.kind == JobKind.Live
+        val live = request.job.kind.isLive
         val extension = when {
             live -> "ts"
             request.quality.protocol == StreamProtocol.Hls -> "ts"

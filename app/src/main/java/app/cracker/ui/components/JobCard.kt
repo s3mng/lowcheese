@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import app.cracker.model.DownloadJob
 import app.cracker.model.JobKind
 import app.cracker.model.JobStatus
+import app.cracker.model.isLive
 import app.cracker.ui.theme.AdultClay
 import app.cracker.ui.theme.Cheddar
 import app.cracker.ui.theme.LiveCoral
@@ -109,7 +110,7 @@ fun JobCard(
             }
             JobActions(job, onCancel, onTogglePause)
         }
-        if (job.kind == JobKind.Vod && job.status != JobStatus.Completed && job.status != JobStatus.Failed && job.status != JobStatus.Cancelled) {
+        if (!job.kind.isLive && job.status != JobStatus.Completed && job.status != JobStatus.Failed && job.status != JobStatus.Cancelled) {
             Spacer(Modifier.height(14.dp))
             LinearProgressIndicator(
                 progress = { job.progress.coerceIn(0f, 1f) },
@@ -122,7 +123,7 @@ fun JobCard(
                 drawStopIndicator = {},
             )
         }
-        if (job.kind == JobKind.Live && job.status == JobStatus.Running) {
+        if (job.kind.isLive && job.status == JobStatus.Running) {
             Spacer(Modifier.height(14.dp))
             LivePulseBar()
         }
@@ -136,7 +137,7 @@ private fun JobActions(
     onTogglePause: () -> Unit,
 ) {
     Row {
-        if (job.kind == JobKind.Vod && job.status in listOf(JobStatus.Running, JobStatus.Paused)) {
+        if (!job.kind.isLive && job.status in listOf(JobStatus.Running, JobStatus.Paused)) {
             IconButton(onClick = onTogglePause) {
                 Icon(
                     if (job.status == JobStatus.Paused) Icons.Filled.PlayArrow else Icons.Filled.Pause,
@@ -148,8 +149,8 @@ private fun JobActions(
         if (job.status == JobStatus.Running || job.status == JobStatus.Paused || job.status == JobStatus.Queued) {
             IconButton(onClick = onCancel) {
                 Icon(
-                    if (job.kind == JobKind.Live) Icons.Filled.Stop else Icons.Filled.Close,
-                    contentDescription = if (job.kind == JobKind.Live) "녹화 중지" else "취소",
+                    if (job.kind.isLive) Icons.Filled.Stop else Icons.Filled.Close,
+                    contentDescription = if (job.kind.isLive) "녹화 중지" else "취소",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -160,12 +161,13 @@ private fun JobActions(
 @Composable
 private fun StatusChip(job: DownloadJob) {
     val (label, color) = when {
-        job.kind == JobKind.Live && job.status == JobStatus.Running -> "LIVE" to LiveCoral
+        job.kind.isLive && job.status == JobStatus.Running -> "LIVE" to LiveCoral
         job.status == JobStatus.Paused -> "PAUSED" to Cheddar
         job.status == JobStatus.Completed -> "DONE" to OkSage
         job.status == JobStatus.Cancelled -> "CANCEL" to MaterialTheme.colorScheme.onSurfaceVariant
         job.status == JobStatus.Failed -> "FAIL" to LiveCoral
         job.status == JobStatus.Stopped -> "STOP" to MaterialTheme.colorScheme.onSurfaceVariant
+        job.kind == JobKind.Clip -> "CLIP" to Cheddar
         job.kind == JobKind.Vod -> "VOD" to Cheddar
         else -> "WAIT" to MaterialTheme.colorScheme.onSurfaceVariant
     }
